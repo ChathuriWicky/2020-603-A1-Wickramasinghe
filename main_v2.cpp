@@ -1,5 +1,10 @@
-//make -f Makefile
-//mpirun -np 1 ./main datasets/small.arff
+/***
+Author: Chathuri Wickrmasinghe, VCU, brahmanacsw@vcu.edu
+
+Run using:
+  make -f Makefile
+  mpirun -np 4 ./main datasets/small.arff 5
+***/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,11 +33,9 @@
 #include<random>
 
 #include <mpi.h>
-
-
-
 using namespace std;
 
+//This function calculate the mode value for a given array with given size. got from stackoverflow
 int get_mode(int* class_array, int class_array_size) {
 
     int* ipRepetition = new int[class_array_size];
@@ -58,13 +61,10 @@ int get_mode(int* class_array, int class_array_size) {
 
 }
 
+//this function takes the distances, K and dataset, returns the mode class value for smallest K distances
 int find_class(float* distances_temp, ArffData* dataset,  int K ){
-  //cout << "in the function----------------------------" << "\n";
 
   int no_of_data_records = dataset->num_instances();
-
-  //std::cout << "no_of_data_records: " << no_of_data_records <<" \n";
-
   vector<float> distances(distances_temp, distances_temp + no_of_data_records);
 
 
@@ -77,25 +77,21 @@ int find_class(float* distances_temp, ArffData* dataset,  int K ){
             return (distances[a] < distances[b]);
         }
     );
-
     int* predictions = (int*)malloc(K * sizeof(int));
 
     for (int i = 0 ; i< K ; i++) {
-        //cout << index[i] << endl;
         predictions[i] = dataset->get_instance(index[i])->get(dataset->num_attributes() - 1)->operator int32();
-        //std::cout << " predictions[i]  " << predictions[i]  << "\n";
     }
 
     int predicted_class = get_mode(predictions, K) ;
-    //std::cout << "smallestDistance in the function" <<  distances_temp[index[0]]<< "\n Function end \n";
-    //std::cout << "predicted_class" << predicted_class << "\n";
     return predicted_class;
 }
 
+//this function calculates prediction for a given data range and for a given K value
 int* KNN(ArffData* dataset, int K, int start_pos, int stop_pos)
 {
 
-  cout << "K :" << K << "\n";
+
   int no_of_datapoints = (stop_pos - start_pos) + 1;
   int* predictions = (int*)malloc(no_of_datapoints * sizeof(int));
 
@@ -108,7 +104,6 @@ int* KNN(ArffData* dataset, int K, int start_pos, int stop_pos)
       int smallestDistanceClass;
       float* distances = (float*)malloc(dataset->num_instances() * sizeof(float));
       distances[start_pos+ temp] = FLT_MAX;
-
 
       for(int j = 0; j < dataset->num_instances(); j++) // target each other instance
       {
@@ -131,13 +126,8 @@ int* KNN(ArffData* dataset, int K, int start_pos, int stop_pos)
           }
       }
 
-
-
-
-      int temp_class = find_class(distances, dataset, K);
-      //std::cout << "closest class from the function" << dataset->get_instance(temp_class)->get(dataset->num_attributes() - 1)->operator int32() << "\n";
-      //std::cout << "smallestDistanceClass from KNN" << smallestDistanceClass << '\n';
-      predictions[temp] = temp_class; //smallestDistanceClass;
+      int predicated_class = find_class(distances, dataset, K);
+      predictions[temp] = predicated_class;
       temp++;
       //std::cout << "For data point: " << i << " smallestDistanceClass: " << smallestDistanceClass << " Predicted with given K : " <<  temp_class << "\n";
 
@@ -173,6 +163,7 @@ float computeAccuracy(int* confusionMatrix, ArffData* dataset)
     return successfulPredictions / (float) dataset->num_instances();
 }
 
+//just for printing/testing
 void print_elements(int* array, int size){
   std::cout << "Printing local elements" << "\n";
   for(int i=0;i<size;i++){
@@ -181,6 +172,7 @@ void print_elements(int* array, int size){
 
 }
 
+//this function takes local predictions and fill the values into global prections array
 void fill_main_predictions(int* predictions_main, int* predictions_local, int start_pos, int stop_pos){
   int temp=0;
   for(int i= start_pos; i<=stop_pos; i++){
@@ -193,11 +185,14 @@ void fill_main_predictions(int* predictions_main, int* predictions_local, int st
 int main(int argc, char *argv[])
 {
 
-    if(argc != 2)
+    if(argc != 3)
     {
         cout << "Usage: ./main datasets/datasetFile.arff" << endl;
+        cout << "Enter the Value for K " << endl;
         exit(0);
     }
+
+
 
     int size;
     int rank;
@@ -213,14 +208,13 @@ int main(int argc, char *argv[])
     MPI_Status Stat;
 
 
-
-
-
     // Open the dataset
     ArffParser parser(argv[1]);
     ArffData *dataset = parser.parse();
+    // Get the user input for K
+    int K = atoi(argv[2]);
+
     struct timespec start, end;
-    int K = 1;
     int no_of_datapoints = dataset->num_instances();
     int count = no_of_datapoints/(size);
     int remainder = no_of_datapoints % size;
@@ -230,9 +224,9 @@ int main(int argc, char *argv[])
 
 
 
-      std::cout << "Im root with rank " << rank << "  ::: " << "count per p is " << count << " No of datapoints:" << no_of_datapoints << "\n";
+        std::cout << "Im root with rank " << rank <<  ", number of elements per processors is " << count << ", Total no of datapoints in the dataset is :" << no_of_datapoints << "\n";
 
-
+        //if only 1 processor is given by the user
         if( size ==1) {
 
           int start_pos = 0;
@@ -250,27 +244,30 @@ int main(int argc, char *argv[])
           clock_gettime(CLOCK_MONOTONIC_RAW, &end);
           uint64_t diff = (1000000000L * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec) / 1e6;
 
-          printf("The KNN classifier, Serial Version for %lu instances required %llu ms CPU time, accuracy was %.4f\n", dataset->num_instances(), (long long unsigned int) diff, accuracy);
+          printf("The KNN classifier with K = %lu, Serial Version for %lu instances required %llu ms CPU time, accuracy was %.4f\n", K, dataset->num_instances(), (long long unsigned int) diff, accuracy);
 
-        }
+        } //if more than 1 processor is given by the user
         else{
+            //timer starts
             clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
 
             int start_pos = 0;
             int stop_pos = count - 1;
-            std::cout << "Im the root start_pos: " << start_pos << " end:" << stop_pos << "\n";
+            std::cout << "Im the root, i have data points with index range: " << start_pos << " - " << stop_pos << "\n";
 
+            //memory location for storing the results from all the processors
             int* predictions_main = (int*)malloc(no_of_datapoints * sizeof(int));
 
-
-            // for root, calc local predictions
+            // from root, calc local predictions for its data chunk with the given range
             int datapoints_count = (stop_pos - start_pos) + 1;
             int* local_predictions = KNN(dataset, K, start_pos, stop_pos);
-            //print_elements(local_predictions, datapoints_count);
+
+            //add local predication to the main predictions array
             fill_main_predictions(predictions_main, local_predictions, start_pos, stop_pos);
 
-
+            // get localprediction from other processors and store them in the main predictions array, Here last processor will get the remaining element if no of data points not devisable by the no of processors
+            // it can be given to the root processor, but i dicided to put that extra load into the last processor
             for(int i = 1; i < size; i++){
                 int start_pos, stop_pos;
                 start_pos = i * (count);
@@ -281,13 +278,11 @@ int main(int argc, char *argv[])
                 }
                 int no_of_ele = (stop_pos - start_pos) + 1;
                 int *localArray = (int *)malloc(no_of_ele * sizeof(int));
+                //receive local arrays
                 MPI_Recv(localArray, no_of_ele, MPI_INT, i, 3, MPI_COMM_WORLD, &Stat);
                 fill_main_predictions(predictions_main, localArray, start_pos, stop_pos);
-                //print_elements(predictions_main, no_of_ele);
 
             }
-
-            //print_elements(predictions_main, no_of_datapoints);
 
             int* confusionMatrix = computeConfusionMatrix(predictions_main, dataset);
             // Calculate the accuracy
@@ -296,14 +291,11 @@ int main(int argc, char *argv[])
             clock_gettime(CLOCK_MONOTONIC_RAW, &end);
             uint64_t diff = (1000000000L * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec) / 1e6;
 
-            printf("The KNN classifier, Parallel Version for %lu instances required %llu ms CPU time, accuracy was %.4f\n", dataset->num_instances(), (long long unsigned int) diff, accuracy);
+            printf("The KNN classifier K = %lu,, Parallel Version for %lu instances required %llu ms CPU time, accuracy was %.4f\n", K , dataset->num_instances(), (long long unsigned int) diff, accuracy);
 
 
 
         }
-
-
-
 
 
     } // end of root
@@ -311,10 +303,6 @@ int main(int argc, char *argv[])
     else{
 
         int start_pos, stop_pos;
-        //MPI_Recv(&start_pos, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, &Stat);
-        //MPI_Recv(&stop_pos, 1, MPI_INT, 0, 1, MPI_COMM_WORLD, &Stat);
-
-
         if(rank!=size-1){
             start_pos = rank * count;
             stop_pos = rank * count + (count -1);
@@ -324,10 +312,10 @@ int main(int argc, char *argv[])
           stop_pos = rank* count + (count -1)+ remainder;
         }
         int no_of_ele = (stop_pos - start_pos) + 1;
-          std::cout << "Im rank " << rank << " with start_pos: " << start_pos << " end:" << stop_pos << " No of ele to process: " << no_of_ele << "\n";
+          std::cout << "Im rank " << rank << " , i have data point with the range: " << start_pos << " - " << stop_pos << " , No of data points to process is: " << no_of_ele << "\n";
 
         int* local_predictions = KNN(dataset, K, start_pos, stop_pos);
-        //print_elements(local_predictions, no_of_ele);
+        //send local predications into the root
         MPI_Send(local_predictions, no_of_ele, MPI_INT, 0, 3, MPI_COMM_WORLD);
 
 
@@ -337,3 +325,4 @@ int main(int argc, char *argv[])
     return 0;
 
 }
+
