@@ -74,7 +74,7 @@ int getMode2(int *a, int n)
     return mode;
 }
 
-////This function calculate the mode value for a given array with given size. got from stackoverflow, this return the first mode value it finds
+////This function calculate the mode value for a given array with given size. got from geeksforgeeks, this return the first mode value it finds
 int get_mode(int* class_array, int class_array_size) {
 
     int* ipRepetition = new int[class_array_size];
@@ -218,8 +218,8 @@ int main(int argc, char *argv[])
 {
     if(argc != 3)
     {
-        cout << "Usage: ./main datasets/datasetFile.arff" << endl;
-        cout << "Enter K" << endl;
+        cout << "Usage: ./main datasets/datasetFile.arff K" << endl;
+      
         exit(0);
     }
     // Open the dataset
