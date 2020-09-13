@@ -3,7 +3,7 @@ Author: Chathuri Wickrmasinghe, VCU, brahmanacsw@vcu.edu
 
 Run using:
   make -f Makefile
-  mpirun -np 4 ./main datasets/small.arff 5
+  ./main_openmp datasets/small.arff 5 56
 ***/
 
 #include <stdio.h>
@@ -86,12 +86,12 @@ int find_class(float* distances_temp, ArffData* dataset,  int K ){
 }
 
 //this function calculates prediction for a given data range and for a given K value
-int* KNNOpenMP(ArffData* dataset, int K)
+int* KNNOpenMP(ArffData* dataset, int K, int no_of_threads)
 {
 
   int* predictions = (int*)malloc(dataset->num_instances() * sizeof(int));
 
-  #pragma omp parallel for num_threads(112)
+  #pragma omp parallel for num_threads(no_of_threads)
   for(int i = 0; i < dataset->num_instances() ; i++) // for each instance in the dataset
   {
 
@@ -175,10 +175,10 @@ void fill_main_predictions(int* predictions_main, int* predictions_local, int st
 int main(int argc, char *argv[])
 {
 
-    if(argc != 3)
+    if(argc != 4)
     {
-        cout << "Usage: ./main datasets/datasetFile.arff" << endl;
-        cout << "Enter the Value for K " << endl;
+        cout << "Usage: ./main datasets/datasetFile.arff K no_of_threads" << endl;
+
         exit(0);
     }
 
@@ -190,6 +190,7 @@ int main(int argc, char *argv[])
     ArffData *dataset = parser.parse();
     // Get the user input for K
     int K = atoi(argv[2]);
+    int no_of_threads = atoi(argv[3]);
 
     struct timespec start, end;
     uint64_t diff;
@@ -198,7 +199,7 @@ int main(int argc, char *argv[])
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
     // Get the class predictions
-    int* predictions = KNNOpenMP(dataset, K);
+    int* predictions = KNNOpenMP(dataset, K, no_of_threads);
     // Compute the confusion matrix
     int* confusionMatrix = computeConfusionMatrix(predictions, dataset);
     // Calculate the accuracy
