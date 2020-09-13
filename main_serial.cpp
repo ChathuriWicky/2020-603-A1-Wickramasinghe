@@ -1,3 +1,11 @@
+/***
+Author: Chathuri Wickrmasinghe, VCU, brahmanacsw@vcu.edu
+
+Run using:
+  make -f Makefile
+./main_serial datasets/small.arff 5
+***/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
@@ -9,9 +17,64 @@
 #include <iostream>
 #include "libarff/arff_parser.h"
 #include "libarff/arff_data.h"
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <iostream>
+#include <string>
+#include <bitset>
+#include <time.h>
+#include <map>
+#include <vector>
+#include <set>
+#include<list>
+#include<random>
+
+
 
 using namespace std;
 
+//https://www.geeksforgeeks.org/mode/
+int getMode2(int *a, int n)
+{
+    // The output array b[] will
+    // have sorted array
+    int b[n];
+
+    // variable to store max of
+    // input array which will
+    // to have size of count array
+    int max = *max_element(a, a + n);
+
+    // auxiliary(count) array to
+    // store count. Initialize
+    // count array as 0. Size
+    // of count array will be
+    // equal to (max + 1).
+    int t = max + 1;
+    int count[t];
+    for (int i = 0; i < t; i++)
+        count[i] = 0;
+
+    // Store count of each element
+    // of input array
+    for (int i = 0; i < n; i++)
+        count[a[i]]++;
+
+    // mode is the index with maximum count
+    int mode = 0;
+    int k = count[0];
+    for (int i = 1; i < t; i++) {
+        if (count[i] > k) {
+            k = count[i];
+            mode = i;
+        }
+    }
+
+    return mode;
+}
+
+////This function calculate the mode value for a given array with given size. got from stackoverflow, this return the first mode value it finds
 int get_mode(int* class_array, int class_array_size) {
 
     int* ipRepetition = new int[class_array_size];
@@ -37,11 +100,11 @@ int get_mode(int* class_array, int class_array_size) {
 
 }
 
+//this function takes the distances, K and dataset, returns the mode class value for smallest K distances
 int find_class(float* distances_temp, ArffData* dataset,  int K ){
-  //cout << "in the function----------------------------" << "\n";
+
 
   int no_of_data_records = dataset->num_instances();
-
   //std::cout << "no_of_data_records: " << no_of_data_records <<" \n";
 
   vector<float> distances(distances_temp, distances_temp + no_of_data_records);
@@ -60,24 +123,34 @@ int find_class(float* distances_temp, ArffData* dataset,  int K ){
     int* predictions = (int*)malloc(K * sizeof(int));
 
     for (int i = 0 ; i< K ; i++) {
-        //cout << index[i] << endl;
+        //cout << "\n" <<index[i] << endl;
         predictions[i] = dataset->get_instance(index[i])->get(dataset->num_attributes() - 1)->operator int32();
         //std::cout << " predictions[i]  " << predictions[i]  << "\n";
     }
 
-    int predicted_class = get_mode(predictions, K) ;
+    int predicted_class = get_mode(predictions, K) ; // or get_mode(predictions, K) or getMode2(predictions, K)
     //std::cout << "smallestDistance in the function" <<  distances_temp[index[0]]<< "\n Function end \n";
-    //std::cout << "predicted_class" << predicted_class << "\n";
+    /*** testing
+    if( predicted_class != getMode2(predictions, K) ){
+      std::cout << "predicted_class method 1: " << predicted_class << " predicted_class method 2: " << calculateMode(predictions, K)  <<  " predicted_class method 3: " <<getMode2 (predictions, K)<< "\n";
+      for (int i = 0 ; i< K ; i++) {
+          //cout << "\n" <<index[i] << endl;
+          predictions[i] = dataset->get_instance(index[i])->get(dataset->num_attributes() - 1)->operator int32();
+          std::cout << " predictions[i]  " << predictions[i]  << "\n";
+      }
+    }
+    ***/
     return predicted_class;
 }
 
+//this function calculates prediction for a given data set, for a given K value
 int* KNN(ArffData* dataset, int K)
 {
-  cout << "K :" << K << "\n";
+
   int* predictions = (int*)malloc(dataset->num_instances() * sizeof(int));
 
 
-  for(int i = 0; i < dataset->num_instances(); i++) // for each instance in the dataset
+  for(int i = 0; i < dataset->num_instances() ; i++) // for each instance in the dataset
   {
 
       float smallestDistance = FLT_MAX;
@@ -99,26 +172,17 @@ int* KNN(ArffData* dataset, int K)
 
           distance = sqrt(distance);
           distances[j] = distance;
-          if(distance < smallestDistance) // select the closest one
-          {
-              smallestDistance = distance;
-              smallestDistanceClass = dataset->get_instance(j)->get(dataset->num_attributes() - 1)->operator int32();
-          }
+
+          //printf("\n data point index= %lu distance = %f class= %lu,",j,distance, dataset->get_instance(j)->get(dataset->num_attributes() - 1)->operator int32());
       }
 
-
-
-
-      int temp_class = find_class(distances, dataset, K);
+      int predicted_class = find_class(distances, dataset, K);
       //std::cout << "closest class from the function" << dataset->get_instance(temp_class)->get(dataset->num_attributes() - 1)->operator int32() << "\n";
       //std::cout << "smallestDistanceClass from KNN" << smallestDistanceClass << '\n';
-      predictions[i] = temp_class; //smallestDistanceClass;
+      predictions[i] = predicted_class; //smallestDistanceClass;
       //std::cout << "For data point: " << i << " smallestDistanceClass: " << smallestDistanceClass << " Predicted with given K : " <<  temp_class << "\n";
-
+      //printf("\npredicted class: %lu", predicted_class);
   }
-
-
-
 
   return predictions;
 }
@@ -152,15 +216,12 @@ float computeAccuracy(int* confusionMatrix, ArffData* dataset)
 
 int main(int argc, char *argv[])
 {
-    if(argc != 2)
+    if(argc != 3)
     {
         cout << "Usage: ./main datasets/datasetFile.arff" << endl;
+        cout << "Enter K" << endl;
         exit(0);
     }
-
-
-
-
     // Open the dataset
     ArffParser parser(argv[1]);
     ArffData *dataset = parser.parse();
@@ -168,10 +229,11 @@ int main(int argc, char *argv[])
 
     clock_gettime(CLOCK_MONOTONIC_RAW, &start);
 
-    int K=1;
+    //user given K value
+    int K = atoi(argv[2]);
 
     // Get the class predictions
-    int* predictions = KNN(dataset, 5);
+    int* predictions = KNN(dataset, K);
     // Compute the confusion matrix
     int* confusionMatrix = computeConfusionMatrix(predictions, dataset);
     // Calculate the accuracy
@@ -180,5 +242,5 @@ int main(int argc, char *argv[])
     clock_gettime(CLOCK_MONOTONIC_RAW, &end);
     uint64_t diff = (1000000000L * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec) / 1e6;
 
-    printf("The KNN classifier for %lu instances required %llu ms CPU time, accuracy was %.4f\n", dataset->num_instances(), (long long unsigned int) diff, accuracy);
+    printf("\n The KNN with K=%lu classifier for %lu instances required %llu ms CPU time, accuracy was %.4f\n", K, dataset->num_instances(), (long long unsigned int) diff, accuracy);
 }
