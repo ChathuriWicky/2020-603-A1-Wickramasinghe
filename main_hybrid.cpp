@@ -3,7 +3,7 @@ Author: Chathuri Wickrmasinghe, VCU, brahmanacsw@vcu.edu
 
 Run using:
   make -f Makefile
-  mpirun -np 4 ./main datasets/small.arff 5
+  mpirun -np 4 ./main_hybrid datasets/small.arff 5 52
 ***/
 
 #include <stdio.h>
@@ -86,7 +86,7 @@ int find_class(float* distances_temp, ArffData* dataset,  int K ){
 }
 
 //this function calculates prediction for a given data range and for a given K value
-int* KNN_openmp(ArffData* dataset, int K, int start_pos, int stop_pos)
+int* KNN_openmp(ArffData* dataset, int K, int start_pos, int stop_pos, int no_of_threads)
 {
 
 
@@ -104,7 +104,7 @@ int* KNN_openmp(ArffData* dataset, int K, int start_pos, int stop_pos)
       distances[start_pos+ temp] = FLT_MAX;
 
 
-      #pragma omp parallel for num_threads(56) //private(distance) shared(distances)
+      #pragma omp parallel for num_threads(no_of_threads) //private(distance) shared(distances)
       for(int j = 0; j < dataset->num_instances(); j++) // target each other instance
       {
           if( start_pos+ temp == j) continue;
@@ -181,10 +181,10 @@ void fill_main_predictions(int* predictions_main, int* predictions_local, int st
 int main(int argc, char *argv[])
 {
 
-    if(argc != 3)
+    if(argc != 4)
     {
-        cout << "Usage: ./main datasets/datasetFile.arff" << endl;
-        cout << "Enter the Value for K " << endl;
+        cout << "Usage: ./main datasets/datasetFile.arff K no_of_threads" << endl;
+
         exit(0);
     }
 
@@ -217,6 +217,7 @@ int main(int argc, char *argv[])
     ArffData *dataset = parser.parse();
     // Get the user input for K
     int K = atoi(argv[2]);
+    int no_of_threads = atoi(argv[3]);
 
     struct timespec start, end;
     int no_of_datapoints = dataset->num_instances();
@@ -236,7 +237,7 @@ int main(int argc, char *argv[])
 
           clock_gettime(CLOCK_MONOTONIC_RAW, &start);
           // Get the class predictions
-          int* predictions = KNN_openmp(dataset, K, start_pos, stop_pos);
+          int* predictions = KNN_openmp(dataset, K, start_pos, stop_pos, no_of_threads);
           //print_elements(predictions, no_of_datapoints);
           // Compute the confusion matrix
           int* confusionMatrix = computeConfusionMatrix(predictions, dataset);
@@ -263,7 +264,7 @@ int main(int argc, char *argv[])
 
             // from root, calc local predictions for its data chunk with the given range
             int datapoints_count = (stop_pos - start_pos) + 1;
-            int* local_predictions = KNN_openmp(dataset, K, start_pos, stop_pos);
+            int* local_predictions = KNN_openmp(dataset, K, start_pos, stop_pos, no_of_threads);
 
             //add local predication to the main predictions array
             fill_main_predictions(predictions_main, local_predictions, start_pos, stop_pos);
@@ -316,7 +317,7 @@ int main(int argc, char *argv[])
         int no_of_ele = (stop_pos - start_pos) + 1;
           std::cout << "Im rank " << rank << " , i have data point with the range: " << start_pos << " - " << stop_pos << " , No of data points to process is: " << no_of_ele << "\n";
 
-        int* local_predictions = KNN_openmp(dataset, K, start_pos, stop_pos);
+        int* local_predictions = KNN_openmp(dataset, K, start_pos, stop_pos, no_of_threads);
         //send local predications into the root
         MPI_Send(local_predictions, no_of_ele, MPI_INT, 0, 3, MPI_COMM_WORLD);
 
