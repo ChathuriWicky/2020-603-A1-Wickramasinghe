@@ -3,7 +3,7 @@ Author: Chathuri Wickrmasinghe, VCU, brahmanacsw@vcu.edu
 
 Run using:
   make -f Makefile
-  mpirun -np 4 ./main datasets/small.arff 5
+  mpirun -np 4 ./main_mpi datasets/small.arff 3
 	mpiexec -np 55 -oversubscribe ./main_mpi datasets/large.arff 1
 ***/
 
@@ -184,8 +184,8 @@ int main(int argc, char *argv[])
 
     if(argc != 3)
     {
-        cout << "Usage: ./main datasets/datasetFile.arff" << endl;
-        cout << "Enter the Value for K " << endl;
+        cout << "Usage: ./main datasets/datasetFile.arff K" << endl;
+
         exit(0);
     }
 
